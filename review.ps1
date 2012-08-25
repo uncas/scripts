@@ -17,6 +17,11 @@ function GetLogsHtml ($logs) {
   return $result
 }
 
+function GetLineDiffHtml ($line, $lineType) {
+  $encoded = $line.Replace("<", "&lt;")
+  return "<p class='$lineType'>$encoded</p>"
+}
+
 function GetFileDiffHtml ($file) {
   $fileDiff = (git diff "$from...$to" $file)
   $result = "<li>
@@ -24,12 +29,20 @@ function GetFileDiffHtml ($file) {
     <a class='filename' name='$file'>$file</a>
   </p>
   <pre class='diff'>"
-  if (!$fileDiff) { $result += (Get-Content $file) }
-  foreach ($line in $fileDiff) {
-    if (!$line) { continue }
-	$lineType = GetLineType $line
-    $encoded = $line.Replace("<", "&lt;")
-    $result += "<p class='$lineType'>$encoded</p>"
+  if (!$fileDiff) { 
+    $showArgument = "$to" + ":" + "$file"
+    $addedFile = (git show "$showArgument")
+	$result += "<p class='header'>New file:</p>"
+	foreach ($line in $addedFile) {
+      $result += GetLineDiffHtml $line "added"
+	}
+  }
+  else {
+    foreach ($line in $fileDiff) {
+      if (!$line) { continue }
+	  $lineType = GetLineType $line
+      $result += GetLineDiffHtml $line $lineType
+	}
   }
   $result += "  </pre>
 </li>"
