@@ -35,7 +35,7 @@ function GetFileDiffHtml ($file) {
     $addedFile = (git show "$showArgument")
 	$result += "<p class='header'>New file:</p>"
 	foreach ($line in $addedFile) {
-      $result += GetLineDiffHtml $line "added"
+      $result += GetLineDiffHtml "+$line" "added"
 	}
   }
   else {
