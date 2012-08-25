@@ -59,15 +59,17 @@ $files = (git diff $range --name-only)
 
 foreach ($file in $files) {
   if ($file) {
+    $file
     $fileIndex = [array]::IndexOf($files, $file)
+    $fileIndex
+    $nextFile = $files[$fileIndex + 1]
   }
-  $file
-  $fileIndex
-  $nextFile = $files[$fileIndex + 1]
   $toc += "<li><a href='#$file'>$file</a></li>"
   $contents += GetFileDiffHtml $file $from $to $nextFile
 }
+
 $logsHtml = GetLogsHtml $logs
+
 $html = "<html>
 <head>
   <title>$range</title>
