@@ -23,7 +23,7 @@ function GetLineDiffHtml ($line, $lineType) {
   return "<p class='$lineType'>$encoded</p>"
 }
 
-function GetFileDiffHtml ($file) {
+function GetFileDiffHtml ($file, $from, $to) {
   $fileDiff = (git diff "$from...$to" $file)
   $result = "<li>
   <p>
@@ -51,22 +51,23 @@ function GetFileDiffHtml ($file) {
 }
 
 $from = $args[0]
-$from
 $to = $args[1]
-$to
-$stats = (git diff "$from...$to" --stat)
-$logs = (git log --oneline "$from...$to")
-$files = (git diff "$from...$to" --name-only)
+$range = "$from...$to"
+$stats = (git diff $range --stat)
+$logs = (git log --oneline $range)
+$files = (git diff $range --name-only)
 $toc += "<ul id='toc'>"
 $contents += "<ul id ='diffs'>"
 foreach ($file in $files) {
   $file
   $toc += "<li><a href='#$file'>$file</a></li>"
-  $contents += GetFileDiffHtml $file
+  $contents += GetFileDiffHtml $file $from $to
 }
 $toc += "</ul>"
 $contents += "</ul>"
-$head = "<head>
+$logsHtml = GetLogsHtml $logs
+$html = "<html>
+<head>
   <style type='text/css'>
     a.filename { background-color: black; color: white; padding: 0.2em; font-size: 125%; }
     pre.diff { line-height: 90%; border: solid 1px #666666; padding: 0.2em; }
@@ -78,10 +79,7 @@ $head = "<head>
 	div.logs { border: solid 1px #999999; padding: 0.5em; }
 	div.logs p { margin: 0; padding: 0; }
   </style>
-</head>"
-$logsHtml = GetLogsHtml $logs
-$html = "<html>
-$head
+</head>
 <body>
 $toc
 <div class='logs'>
@@ -90,5 +88,7 @@ $logsHtml
 $contents
 </body>
 </html>"
+
 Set-Content review.html $html
+
 .\review.html
