@@ -23,11 +23,14 @@ function GetLineDiffHtml ($line, $lineType) {
   return "<p class='$lineType'>$encoded</p>"
 }
 
-function GetFileDiffHtml ($file, $from, $to) {
+function GetFileDiffHtml ($file, $from, $to, $nextFile) {
   $fileDiff = (git diff "$from...$to" $file)
   $result = "<li>
   <p>
     <a class='filename' name='$file'>$file</a>
+  </p>
+  <p>
+    <a class='nextFile' href='#$nextFile'>next</a>
   </p>
   <pre class='diff'>"
   if (!$fileDiff) { 
@@ -59,9 +62,14 @@ $files = (git diff $range --name-only)
 $toc += "<ul id='toc'>"
 $contents += "<ul id ='diffs'>"
 foreach ($file in $files) {
+  if ($file) {
+    $fileIndex = [array]::IndexOf($files, $file)
+  }
   $file
+  $fileIndex
+  $nextFile = $files[$fileIndex + 1]
   $toc += "<li><a href='#$file'>$file</a></li>"
-  $contents += GetFileDiffHtml $file $from $to
+  $contents += GetFileDiffHtml $file $from $to $nextFile
 }
 $toc += "</ul>"
 $contents += "</ul>"
