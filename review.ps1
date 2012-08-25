@@ -10,7 +10,6 @@ function GetLineType ($line) {
 }
 
 function GetLogsHtml ($logs) {
-  $result = ""
   foreach ($log in $logs) {
     $result += "<p>$log</p>"
   }
@@ -25,14 +24,11 @@ function GetLineDiffHtml ($line, $lineType) {
 
 function GetFileDiffHtml ($file, $from, $to, $nextFile) {
   $fileDiff = (git diff "$from...$to" $file)
-  $result = "<li>
-  <p>
-    <a class='filename' name='$file'>$file</a>
-  </p>
-  <p>
-    <a class='nextFile' href='#$nextFile'>next</a>
-  </p>
-  <pre class='diff'>"
+  $result = "<li><p><a class='filename' name='$file'>$file</a></p>"
+  if ($nextFile) {
+    $result += "<p><a class='nextFile' href='#$nextFile'>next</a></p>"
+  }
+  $result += "<pre class='diff'>"
   if (!$fileDiff) { 
     $showArgument = "$to" + ":" + "$file"
     $addedFile = (git show "$showArgument")
@@ -48,19 +44,19 @@ function GetFileDiffHtml ($file, $from, $to, $nextFile) {
       $result += GetLineDiffHtml $line $lineType
 	}
   }
-  $result += "  </pre>
-</li>"
+  $result += "</pre></li>"
   return $result
 }
 
 $from = $args[0]
 $to = $args[1]
+
 $range = "$from...$to"
+
 $stats = (git diff $range --stat)
 $logs = (git log --oneline $range)
 $files = (git diff $range --name-only)
-$toc += "<ul id='toc'>"
-$contents += "<ul id ='diffs'>"
+
 foreach ($file in $files) {
   if ($file) {
     $fileIndex = [array]::IndexOf($files, $file)
@@ -71,13 +67,12 @@ foreach ($file in $files) {
   $toc += "<li><a href='#$file'>$file</a></li>"
   $contents += GetFileDiffHtml $file $from $to $nextFile
 }
-$toc += "</ul>"
-$contents += "</ul>"
 $logsHtml = GetLogsHtml $logs
 $html = "<html>
 <head>
+  <title>$range</title>
   <style type='text/css'>
-    a.filename { background-color: black; color: white; padding: 0.2em; font-size: 125%; }
+    a.filename { background-color: black; color: white; padding: 0.2em; font-size: 115%; }
     pre.diff { line-height: 90%; border: solid 1px #666666; padding: 0.2em; }
 	pre.diff p { padding: 0; margin: 0; }
 	pre.diff p.header { background-color: #EEEEEE; margin-bottom: 0.2em; }
@@ -86,14 +81,36 @@ $html = "<html>
 	pre.diff p.removed { background-color: #FFCCCC; }
 	div.logs { border: solid 1px #999999; padding: 0.5em; }
 	div.logs p { margin: 0; padding: 0; }
-  </style>
+   </style>
 </head>
 <body>
-$toc
-<div class='logs'>
-$logsHtml
+<div>
+  <h1>$range</h1>
+  <ul id='index'>
+    <li><a href='#files'>Files</a>
+    <li><a href='#commits'>Commits</a>
+    <li><a href='#diffs'>Diffs</a>
+  </ul>
 </div>
-$contents
+<div>
+  <a name='files' />
+  <h2>Files</h2>
+  <ul id='toc'>
+    $toc
+  </ul>
+</div>
+<div class='logs'>
+  <a name='commits' />
+  <h2>Commits</h2>
+  $logsHtml
+</div>
+<div>
+  <a name='diffs' />
+  <h2>Diffs</h2>
+  <ul id ='fileDiffs'>
+    $contents
+  </ul>
+</div>
 </body>
 </html>"
 
