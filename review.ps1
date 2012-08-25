@@ -19,6 +19,7 @@ function GetLogsHtml ($logs) {
 
 function GetLineDiffHtml ($line, $lineType) {
   $encoded = $line.Replace("<", "&lt;")
+  if ($encoded -eq "") { $encoded = "&nbsp;" }
   return "<p class='$lineType'>$encoded</p>"
 }
 
