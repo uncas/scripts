@@ -48,8 +48,7 @@ function GetFileDiffHtml ($file, $from, $to, $nextFile) {
   return $result
 }
 
-$range = $args[0]
-$rangeParts = $range.Split("...")
+$rangeParts = $args[0].Split("...")
 $from = $rangeParts[0]
 $to = $rangeParts[$rangeParts.length-1]
 
@@ -116,6 +115,7 @@ $html = "<html>
 </body>
 </html>"
 
-Set-Content review.html $html
-
-.\review.html
+$currentDir = Get-Location
+$reviewFile = "$currentDir\..\review_" + $from + "_" + "$to.html"
+Set-Content $reviewFile $html
+. $reviewFile
