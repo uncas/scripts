@@ -48,14 +48,14 @@ function GetFileDiffHtml ($file, $from, $to, $nextFile) {
   return $result
 }
 
-$from = $args[0]
-$to = $args[1]
+$range = $args[0]
+$rangeParts = $range.Split("...")
+$from = $rangeParts[0]
+$to = $rangeParts[$rangeParts.length-1]
 
-$range = "$from...$to"
-
-$stats = (git diff $range --stat)
-$logs = (git log --oneline $range)
-$files = (git diff $range --name-only)
+$stats = (git diff $args --stat)
+$logs = (git log --oneline $args)
+$files = (git diff $args --name-only)
 
 foreach ($file in $files) {
   if ($file) {
@@ -72,7 +72,7 @@ $logsHtml = GetLogsHtml $logs
 
 $html = "<html>
 <head>
-  <title>$range</title>
+  <title>$args</title>
   <style type='text/css'>
     a.filename { background-color: black; color: white; padding: 0.2em; font-size: 115%; }
     pre.diff { line-height: 90%; border: solid 1px #666666; padding: 0.2em; }
@@ -87,7 +87,7 @@ $html = "<html>
 </head>
 <body>
 <div>
-  <h1>$range</h1>
+  <h1>$args</h1>
   <ul id='index'>
     <li><a href='#files'>Files</a>
     <li><a href='#commits'>Commits</a>
