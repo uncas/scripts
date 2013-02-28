@@ -3,6 +3,13 @@ $branches = (git branch -r --no-merge main)
 $conflicts = @()
 $noConflicts = @()
 
+function Conflict ($branch, $files) {
+    $this = "" | Select Branch, Files
+    $this.Branch = $branch
+    $this.Files = $files
+    return $this
+}
+
 function HasConflict ($output) {
     $result = @()
     $conflictPattern = "CONFLICT (content): Merge conflict in"
@@ -25,7 +32,7 @@ foreach ($branch in $branches) {
     $conflictingFiles = (HasConflict $output)
     if ($conflictingFiles.count -gt 0) {
         Write-Host "Conflicting branch: $trimmed"
-        $conflicts += $trimmed
+        $conflicts += Conflict $trimmed $conflictingFiles
     }
     else {
         $noConflicts += $trimmed
@@ -34,7 +41,7 @@ foreach ($branch in $branches) {
     git reset --hard $sha
     git clean -d -f -x
     
-    if ($noConflicts.count -eq 2) { break }
+    #if ($noConflicts.count -eq 2) { break }
 }
 
 Write-Host ""
@@ -42,8 +49,13 @@ Write-Host " * * *"
 Write-Host ""
 Write-Host "Conflicting branches:"
 
-foreach ($branch in $conflicts) {
+foreach ($conflict in $conflicts) {
+    $branch = $conflict.Branch
+    $files = $conflict.Files
     Write-Host " - $branch"
+    foreach ($file in $files) {
+        Write-Host "   - $file"
+    }
 }
 
 Write-Host ""
