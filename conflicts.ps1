@@ -4,14 +4,16 @@ $conflicts = @()
 $noConflicts = @()
 
 function HasConflict ($output) {
-    #$conflictPattern = "CONFLICT (content): Merge conflict in"
+    $result = @()
+    $conflictPattern = "CONFLICT (content): Merge conflict in"
     foreach ($line in $output) {
         if ($line.Contains("conflict")) {
-            return $True
+            $file = $line.Replace($conflictPattern, "").Trim()
+            $result += $file
         }
     }
     
-    return $False
+    return $result
 }
 
 foreach ($branch in $branches) {
@@ -20,7 +22,8 @@ foreach ($branch in $branches) {
 
     Write-Host $trimmed
     $output = (git merge $trimmed)
-    if (HasConflict $output) {
+    $conflictingFiles = (HasConflict $output)
+    if ($conflictingFiles.count -gt 0) {
         Write-Host "Conflicting branch: $trimmed"
         $conflicts += $trimmed
     }
@@ -30,6 +33,8 @@ foreach ($branch in $branches) {
     
     git reset --hard $sha
     git clean -d -f -x
+    
+    if ($noConflicts.count -eq 2) { break }
 }
 
 Write-Host ""
