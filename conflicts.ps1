@@ -25,28 +25,36 @@ $branches = (git branch -r --no-merge main)
 $conflicts = @()
 $noConflicts = @()
 
+$relevantBranches = @()
+
+Write-Host "Finding relevant branches..."
 foreach ($branch in $branches) {
     $trimmed = $branch.Trim()
     if (!$trimmed.StartsWith("origin")) { continue }
     
-    $lastCommit = (git log $trimmed --oneline --since="2.days.ago" -1)
+    $lastCommit = (git log $trimmed --oneline --since="2.hours.ago" -1)
     if (!$lastCommit) { continue }
 
-    Write-Host $trimmed
-    $output = (git merge $trimmed)
+    $relevantBranches += $trimmed
+    Write-Host " - $trimmed"
+}
+
+Write-Host "Merging relevant branches and finding conflicts..."
+foreach ($branch in $relevantBranches)
+{    
+    Write-Host $branch
+    $output = (git merge $branch)
     $conflictingFiles = (HasConflict $output)
     if ($conflictingFiles.count -gt 0) {
-        Write-Host "Conflicting branch: $trimmed"
-        $conflicts += Conflict $trimmed $conflictingFiles
+        Write-Host "Conflicting branch: $branch"
+        $conflicts += Conflict $branch $conflictingFiles
     }
     else {
-        $noConflicts += $trimmed
+        $noConflicts += $branch
     }
     
     git reset --hard $sha
     git clean -d -f -x
-    
-    #if ($noConflicts.count -eq 2) { break }
 }
 
 Write-Host ""
