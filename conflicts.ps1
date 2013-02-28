@@ -1,8 +1,3 @@
-$sha = (git rev-parse HEAD)
-$branches = (git branch -r --no-merge main)
-$conflicts = @()
-$noConflicts = @()
-
 function Conflict ($branch, $files) {
     $this = "" | Select Branch, Files
     $this.Branch = $branch
@@ -13,7 +8,9 @@ function Conflict ($branch, $files) {
 function HasConflict ($output) {
     $result = @()
     $conflictPattern = "CONFLICT (content): Merge conflict in"
+    $info = "Automatic merge failed; fix conflicts and then commit the result."
     foreach ($line in $output) {
+        if ($line.Trim().Contains($info)) { continue }
         if ($line.Contains("conflict")) {
             $file = $line.Replace($conflictPattern, "").Trim()
             $result += $file
@@ -23,11 +20,16 @@ function HasConflict ($output) {
     return $result
 }
 
+$sha = (git rev-parse HEAD)
+$branches = (git branch -r --no-merge main)
+$conflicts = @()
+$noConflicts = @()
+
 foreach ($branch in $branches) {
     $trimmed = $branch.Trim()
     if (!$trimmed.StartsWith("origin")) { continue }
     
-    $lastCommit = (git log $trimmed --oneline --since="7.days.ago" -1)
+    $lastCommit = (git log $trimmed --oneline --since="2.days.ago" -1)
     if (!$lastCommit) { continue }
 
     Write-Host $trimmed
