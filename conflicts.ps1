@@ -1,6 +1,7 @@
-function Conflict ($branch, $files) {
-    $this = "" | Select Branch, Files
+function Conflict ($branch, $otherBranch, $files = @()) {
+    $this = "" | Select Branch, OtherBranch, Files
     $this.Branch = $branch
+    $this.OtherBranch = $otherBranch
     $this.Files = $files
     return $this
 }
@@ -20,7 +21,9 @@ function HasConflict ($output) {
     return $result
 }
 
-$sha = (git rev-parse HEAD)
+$startBranch = "main"
+$workBranch = "MergeScriptWork"
+
 $branches = (git branch -r --no-merge main)
 $conflicts = @()
 $noConflicts = @()
@@ -32,7 +35,7 @@ foreach ($branch in $branches) {
     $trimmed = $branch.Trim()
     if (!$trimmed.StartsWith("origin")) { continue }
     
-    $lastCommit = (git log $trimmed --oneline --since="2.hours.ago" -1)
+    $lastCommit = (git log $trimmed --oneline --since="4.days.ago" -1)
     if (!$lastCommit) { continue }
 
     $relevantBranches += $trimmed
@@ -40,22 +43,36 @@ foreach ($branch in $branches) {
 }
 
 Write-Host "Merging relevant branches and finding conflicts..."
+$firstIndex = 0
 foreach ($branch in $relevantBranches)
-{    
-    Write-Host $branch
-    $output = (git merge $branch)
-    $conflictingFiles = (HasConflict $output)
-    if ($conflictingFiles.count -gt 0) {
-        Write-Host "Conflicting branch: $branch"
-        $conflicts += Conflict $branch $conflictingFiles
-    }
-    else {
-        $noConflicts += $branch
+{
+    git checkout $startBranch
+    git branch -D $workBranch
+    git checkout -b $workBranch $branch
+    $sha = (git rev-parse HEAD)
+
+    for ($i = $firstIndex + 1; $i -le $relevantBranches.count-1; $i++) {
+        $otherBranch = $relevantBranches[$i]
+        Write-Host "Finding conflicts between '$branch' - '$otherBranch':"
+        $output = (git merge $otherBranch)
+        $conflictingFiles = (HasConflict $output)
+        if ($conflictingFiles.count -gt 0) {
+            Write-Host "Conflict between branches '$branch' - '$otherBranch'"
+            $conflicts += Conflict $branch $otherBranch $conflictingFiles
+        }
+        else {
+            $noConflicts += Conflict $branch $otherBranch
+        }
+    
+        git reset --hard $sha
+        git clean -d -f -x
     }
     
-    git reset --hard $sha
-    git clean -d -f -x
+    $firstIndex++
 }
+
+git checkout $startBranch
+git branch -D $workBranch
 
 Write-Host ""
 Write-Host " * * *"
@@ -64,8 +81,9 @@ Write-Host "Conflicting branches:"
 
 foreach ($conflict in $conflicts) {
     $branch = $conflict.Branch
+    $otherBranch = $conflict.OtherBranch
     $files = $conflict.Files
-    Write-Host " - $branch"
+    Write-Host " - $branch - $otherBranch"
     foreach ($file in $files) {
         Write-Host "   - $file"
     }
@@ -73,6 +91,8 @@ foreach ($conflict in $conflicts) {
 
 Write-Host ""
 Write-Host "No-conflict branches:"
-foreach ($branch in $noConflicts) {
-    Write-Host " - $branch"
+foreach ($conflict in $noConflicts) {
+    $branch = $conflict.Branch
+    $otherBranch = $conflict.OtherBranch
+    Write-Host " - $branch - $otherBranch"
 }
