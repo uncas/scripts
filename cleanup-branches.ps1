@@ -1,13 +1,20 @@
-$branches = (git branch -r --merge origin/current)
+$branches = (git branch -r --merge release0165)
 $count = 0
 foreach ($branch in $branches) {
     $branchShort = $branch.Replace("origin/", "").Trim()
+    if ($branchShort -eq "current") { continue }
+    if ($branchShort -eq "master") { continue }
+    if ($branchShort -eq "SYI-API") { continue }
+    if ($branchShort -eq "feature-QA") { continue }
+    if ($branchShort.Contains("/")) { continue }
     Write-Host "git push origin :$branchShort"
     $count++
     if ($count % 9 -eq 0) {
         Write-Host "start-sleep -seconds 120"
     }
 }
+
+return
 
 $days = 100
 Write-Host ""
