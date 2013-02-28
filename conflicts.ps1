@@ -26,6 +26,9 @@ function HasConflict ($output) {
 foreach ($branch in $branches) {
     $trimmed = $branch.Trim()
     if (!$trimmed.StartsWith("origin")) { continue }
+    
+    $lastCommit = (git log $trimmed --oneline --since="7.days.ago" -1)
+    if (!$lastCommit) { continue }
 
     Write-Host $trimmed
     $output = (git merge $trimmed)
