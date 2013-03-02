@@ -24,7 +24,7 @@ function HasConflict ($output) {
 $startBranch = "main"
 $workBranch = "MergeScriptWork"
 
-$branches = (git branch -r --no-merge main)
+$branches = (git branch -r --no-merge $startBranch)
 $conflicts = @()
 $noConflicts = @()
 
@@ -35,7 +35,7 @@ foreach ($branch in $branches) {
     $trimmed = $branch.Trim()
     if (!$trimmed.StartsWith("origin")) { continue }
     
-    $lastCommit = (git log $trimmed --oneline --since="4.days.ago" -1)
+    $lastCommit = (git log $trimmed --oneline --since="7.days.ago" -1)
     if (!$lastCommit) { continue }
 
     $relevantBranches += $trimmed
@@ -79,14 +79,22 @@ Write-Host " * * *"
 Write-Host ""
 Write-Host "Conflicting branches:"
 
+$xml = "<root>"
+
 foreach ($conflict in $conflicts) {
     $branch = $conflict.Branch
     $otherBranch = $conflict.OtherBranch
     $files = $conflict.Files
     Write-Host " - $branch - $otherBranch"
+    $xml += "
+  <branches branch='$branch' otherBranch='$otherBranch'>"
     foreach ($file in $files) {
         Write-Host "   - $file"
+        $xml += "
+    <conflict>$file</conflict>"
     }
+    $xml += "
+    </branches>"
 }
 
 Write-Host ""
@@ -95,4 +103,11 @@ foreach ($conflict in $noConflicts) {
     $branch = $conflict.Branch
     $otherBranch = $conflict.OtherBranch
     Write-Host " - $branch - $otherBranch"
+    $xml += "
+  <branches branch='$branch' otherBranch='$otherBranch' />"
 }
+
+$xml += "
+</root>"
+$xmlFile = "C:\Temp\conflicts.xml"
+Set-Content $xmlFile $xml
