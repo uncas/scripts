@@ -6,11 +6,52 @@ function Package ($id, $version) {
     return $this
 }
 
+function GetVersion ($versionString) {
+    $this = "" | Select Major, Minor, Revision, Build
+    $parts = $versionString.Split('.')
+    $this.Major = $parts[0]
+    $this.Minor = $parts[1]
+    $this.Revision = $parts[2]
+    $this.Build =  $parts[3]
+    return $this
+}
+
+function GetVersionDiff ($v1, $v2) {
+    $this = "" | Select Major, Minor, Revision, Build
+    if ($v1.Major -ne $v2.Major) {
+        $this.Major = $v2.Major - $v1.Major
+        return $this
+    }
+    $this.Major = 0
+    if ($v1.Minor -ne $v2.Minor) {
+        $this.Minor = $v2.Minor - $v1.Minor
+        return $this
+    }
+    $this.Minor = 0
+    if ($v1.Revision -ne $v2.Revision) {
+        $this.Revision = $v2.Revision - $v1.Revision
+        return $this
+    }
+    $this.Revision = 0
+    if ($v1.Build -ne $v2.Build) {
+        $this.Build = $v2.Build - $v1.Build
+        return $this
+    }
+    $this.Build = 0
+    return $this
+}
+
 function PackageVersionComparison ($id, $currentVersion, $availableVersion) {
-    $this = "" | Select Id, CurrentVersion, AvailableVersion
+    $this = "" | Select Id, CurrentVersion, AvailableVersion, VersionDiff, VersionDiffNumber
     $this.Id = $id
     $this.CurrentVersion = $currentVersion
     $this.AvailableVersion = $availableVersion
+    $this.VersionDiff = GetVersionDiff (GetVersion $currentVersion) (GetVersion $availableVersion)
+    $this.VersionDiffNumber = 
+        1000000000 * $this.VersionDiff.Major + 
+        1000000 * $this.VersionDiff.Minor + 
+        1000 * $this.VersionDiff.Revision + 
+        $this.VersionDiff.Build
     return $this
 }
 
@@ -21,8 +62,9 @@ function GetAvailableVersions ($id) {
     return $json | ConvertFrom-JSON
 }
 
-Write-Host "Getting available packages" -nonewline
-$packageFiles = (gci -r -include packages.config) 
+cls
+Write-Host "Getting current packages" -nonewline
+$packageFiles = (gci -r -include packages.config)
 $packages = @{}
 foreach ($packageFile in $packageFiles) {
     [xml]$packagesXml = Get-Content $packageFile
@@ -38,9 +80,6 @@ foreach ($packageFile in $packageFiles) {
 }
 
 $sorted = $packages.GetEnumerator() | Sort-Object Name
-#Write-Host ""
-#Write-Host "Available packages:"
-#$sorted
 
 Write-Host ""
 Write-Host "Checking newest available versions" -nonewline
@@ -68,16 +107,15 @@ foreach ($package in $sorted) {
 
 Write-Host ""
 Write-Host ""
-Write-Host "Up-to-date packages:"
-$uptodate
+Write-Host "Out-dated packages:"
+$outdated | Sort-Object VersionDiffNumber, CurrentVersion -descending | Select Id, CurrentVersion, AvailableVersion
 
 Write-Host ""
-Write-Host "Out-dated packages:"
+Write-Host "Up-to-date packages:"
 Write-Host ""
-$outdated
+$uptodate
 
 Write-Host ""
 Write-Host "No version info found:"
 Write-Host ""
 $noinfo
-
