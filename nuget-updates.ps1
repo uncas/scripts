@@ -105,17 +105,17 @@ foreach ($package in $sorted) {
     Write-Host "." -nonewline
 }
 
-Write-Host ""
-Write-Host ""
-Write-Host "Out-dated packages:"
+""
+""
+"Out-dated packages:"
 $outdated | Sort-Object VersionDiffNumber, CurrentVersion -descending | Select Id, CurrentVersion, AvailableVersion
 
-Write-Host ""
-Write-Host "Up-to-date packages:"
-Write-Host ""
+""
+"Up-to-date packages:"
+""
 $uptodate
 
-Write-Host ""
-Write-Host "No version info found:"
-Write-Host ""
+""
+"No version info found:"
+""
 $noinfo
