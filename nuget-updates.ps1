@@ -62,7 +62,6 @@ function GetAvailableVersions ($id) {
     return $json | ConvertFrom-JSON
 }
 
-cls
 Write-Host "Getting current packages" -nonewline
 $packageFiles = (gci -r -include packages.config)
 $packages = @{}
@@ -105,17 +104,23 @@ foreach ($package in $sorted) {
     Write-Host "." -nonewline
 }
 
-""
-""
-"Out-dated packages:"
-$outdated | Sort-Object VersionDiffNumber, CurrentVersion -descending | Select Id, CurrentVersion, AvailableVersion
+if ($outdated) {
+    ""
+    ""
+    "Out-dated packages:"
+    $outdated | Sort-Object VersionDiffNumber, CurrentVersion -descending | Select Id, CurrentVersion, AvailableVersion
+}
 
-""
-"Up-to-date packages:"
-""
-$uptodate
+if ($uptodate) {
+    ""
+    "Up-to-date packages:"
+    ""
+    $uptodate
+}
 
-""
-"No version info found:"
-""
-$noinfo
+if ($noinfo) {
+    ""
+    "No version info found:"
+    ""
+    $noinfo
+}
