@@ -6,13 +6,14 @@ function Package ($id, $version) {
     return $this
 }
 
-function GetVersion ($versionString) {
-    $this = "" | Select Major, Minor, Revision, Build
+function GetVersion ([string]$versionString) {
+    $this = "" | Select Major, Minor, Revision, Build, VersionString
     $parts = $versionString.Split('.')
-    $this.Major = $parts[0]
-    $this.Minor = $parts[1]
-    $this.Revision = $parts[2]
-    $this.Build =  $parts[3]
+    $this.Major = [int]$parts[0]
+    $this.Minor = [int]$parts[1]
+    $this.Revision = [int]$parts[2]
+    $this.Build = [int]$parts[3]
+    $this.VersionString = $versionString
     return $this
 }
 
@@ -59,7 +60,21 @@ function GetAvailableVersions ($id) {
     $url = "http://nuget.org/api/v2/package-versions/$id"
     $webClient = New-Object System.Net.WebClient
     [string]$json = $webClient.DownloadString($url)
-    return $json | ConvertFrom-JSON
+    $unsorted = ($json | ConvertFrom-JSON)
+    $sorted = @()
+    foreach ($item in $unsorted) {
+        $sorted += (GetVersion ([string]$item))
+    }
+    return $sorted | Sort-Object Major, Minor, Revision, Build | Select -ExpandProperty VersionString
+}
+
+# To exclude packages/versions from being suggested,
+# put a file named 'nuget-rules.xml' in the root of your project.
+# See example in current directory/nuget-rules.xml.
+$rulesFile = "nuget-rules.xml"
+if (Test-Path $rulesFile) {
+    [xml]$rules = (Get-Content $rulesFile)
+    $badVersions = $rules.rules.badVersions.package
 }
 
 Write-Host "Getting current packages" -nonewline
@@ -80,6 +95,20 @@ foreach ($packageFile in $packageFiles) {
 
 $sorted = $packages.GetEnumerator() | Sort-Object Name
 
+function GetNewestGoodVersion($id, $versions) {
+    $index = $versions.count - 1
+    while ($index -ge 0) {
+        $candidate = $versions[$index]
+        $badVersion = $badVersions | Where-Object { ($_.id -eq $id) -and ($_.version -eq $candidate) }
+        if (!$badVersion) {
+            return $candidate
+        }
+        $index--;
+    }
+    
+    return ""
+}
+
 Write-Host ""
 Write-Host "Checking newest available versions" -nonewline
 $uptodate = @()
@@ -93,7 +122,7 @@ foreach ($package in $sorted) {
         $noinfo += $package.Value
         continue
     }
-    $newestVersion = $versions[-1]
+    $newestVersion = GetNewestGoodVersion $id $versions
     $comparison = PackageVersionComparison $id $version $newestVersion
     if ($version -ne $newestVersion) {
         $outdated += $comparison
