@@ -1,3 +1,5 @@
+param($from, $to)
+
 function GetLineType ($line) {
   if ($line.StartsWith("diff")) { return "header" }
   if ($line.StartsWith("index")) { return "header" }
@@ -48,13 +50,9 @@ function GetFileDiffHtml ($file, $from, $to, $nextFile) {
   return $result
 }
 
-$rangeParts = $args[0].Split("...")
-$from = $rangeParts[0]
-$to = $rangeParts[$rangeParts.length-1]
-
-$stats = (git diff $args --stat)
-$logs = (git log --oneline $args)
-$files = (git diff $args --name-only)
+$stats = (git diff "$from...$to" --stat)
+$logs = (git log --oneline "$from..$to")
+$files = (git diff "$from...$to" --name-only)
 
 foreach ($file in $files) {
   if ($file) {
@@ -71,7 +69,7 @@ $logsHtml = GetLogsHtml $logs
 
 $html = "<html>
 <head>
-  <title>$args</title>
+  <title>$from - $to</title>
   <style type='text/css'>
     a.filename { background-color: black; color: white; padding: 0.2em; font-size: 115%; }
     pre.diff { line-height: 90%; border: solid 1px #666666; padding: 0.2em; }
@@ -86,7 +84,7 @@ $html = "<html>
 </head>
 <body>
 <div>
-  <h1>$args</h1>
+  <h1>$from - $to</h1>
   <ul id='index'>
     <li><a href='#files'>Files</a>
     <li><a href='#commits'>Commits</a>

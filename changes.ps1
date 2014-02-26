@@ -1,5 +1,7 @@
-$from = "release0125"
-$to = "HEAD"
+param(
+	$from = "release0125",
+	$to = "HEAD"
+)
 
 $range = "$from..$to"
 
@@ -32,7 +34,7 @@ foreach ($authorLine in $authorLines) {
     $stats = (git log --author="$author" --oneline --shortstat $range)
     #  1 files changed, 0 insertions(+), 2 deletions(-)
     foreach ($stat in $stats) {
-        if (!$stat -or !$stat.Contains("files changed")) { continue }
+        if (!$stat -or (!$stat.Contains("files changed") -or !$stat.Contains("files changed"))) { continue }
         $statParts = $stat.Trim().Split()
         $files += $statParts[0]
         $insertions += $statParts[3]

@@ -104,10 +104,12 @@ foreach ($package in $sorted) {
     Write-Host "." -nonewline
 }
 
+""
+
 if ($outdated) {
     ""
-    ""
     "Out-dated packages:"
+    ""
     $outdated | Sort-Object VersionDiffNumber, CurrentVersion -descending | Select Id, CurrentVersion, AvailableVersion
 }
 
@@ -115,7 +117,7 @@ if ($uptodate) {
     ""
     "Up-to-date packages:"
     ""
-    $uptodate
+    $uptodate | Select Id, CurrentVersion, AvailableVersion
 }
 
 if ($noinfo) {

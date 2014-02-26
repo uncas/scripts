@@ -1,5 +1,5 @@
 function OutputMergedBranches () {
-    $branches = (git branch -r --merge release0172)
+    $branches = (git branch -r --merge main)
     $count = 0
     foreach ($branch in $branches) {
         $branchShort = $branch.Replace("origin/", "").Trim()
@@ -17,7 +17,7 @@ function OutputMergedBranches () {
 }
 
 function OutputLastCommitterPerBranch () {
-    $days = 5
+    $days = 30
     Write-Host ""
     $branches = (git branch -r --no-merge main)
     $selected = @()
