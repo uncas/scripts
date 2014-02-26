@@ -1,5 +1,7 @@
 param($projectName = "DBA", $databaseName = "NugetPackages")
 
+cls
+
 function Package ($id, $version) {
     $this = "" | Select Id, Version, FullName
     $this.Id = $id
@@ -57,11 +59,19 @@ function PackageVersionComparison ($id, $currentVersion, $availableVersion) {
     return $this
 }
 
+function Download ($url) {
+    $webClient = New-Object System.Net.WebClient
+    return $webClient.DownloadString($url)
+}
+
+function DownloadAndConvertFromJson ($url) {
+    [string]$json = Download($url)
+    return $json | ConvertFrom-JSON
+}
+
 function GetAvailableVersions ($id) {
     $url = "http://nuget.org/api/v2/package-versions/$id"
-    $webClient = New-Object System.Net.WebClient
-    [string]$json = $webClient.DownloadString($url)
-    return $json | ConvertFrom-JSON
+    return DownloadAndConvertFromJson $url
 }
 
 function SqlNonQuery($sql, $db = $databaseName, $connectionString = "Server=.\SqlExpress;Database=$db;Integrated Security=true;"){
@@ -140,6 +150,71 @@ function ClearChecksForProject {
     SqlNonQuery "UPDATE ProjectNugetPackage SET IncludedInLastCheck = 0 WHERE ProjectName = '$projectName'"
 }
 
+function DownloadDateForVersion($packageName, $version) {
+    $url = "http://www.nuget.org/api/v2/Packages()?`$filter=Id eq '$packageName' and Version eq '$version'&`$select=Id,Version,Created"
+    [xml]$result = Download $url
+    $items = $result.feed.entry
+    foreach ($item in $items) {
+        return $item.properties.created.innerxml
+    }
+}
+
+function UpdatePackageVersionCreated {
+    $packageVersionsWithoutDate = SqlQuery "SELECT PackageName, Version FROM NugetPackageVersion WHERE VersionDate IS NULL"
+    foreach ($packageVersion in $packageVersionsWithoutDate.Tables[0].Rows) {
+        $packageName = $packageVersion["PackageName"]
+        $version = $packageVersion["Version"]
+        $created = DownloadDateForVersion $packageName $version
+        "$packageName $version $created"
+        if ($created) {
+            SqlNonQuery "UPDATE NugetPackageVersion SET VersionDate = '$created' WHERE PackageName = '$packageName' AND Version = '$version'"
+        }
+    }
+}
+
+function GetNewestVersion($packageName) {
+    $url = "http://www.nuget.org/api/v2/Packages()?`$filter=Id eq '$packageName'&`$orderby=Created desc&`$select=Id,Version,Created"
+    [xml]$result = Download $url
+    $items = $result.feed.entry
+    foreach ($item in $items) {
+        return $item.properties.version
+    }
+}
+
+# TESTING:
+
+$packageName = "NUnit"
+$version = "2.6.2"
+
+# Newest version:
+$url = "http://www.nuget.org/api/v2/Packages()?`$filter=Id eq '$packageName'&`$orderby=Created desc&`$select=Id,Version,Created"
+
+# Specific version:
+$url = "http://www.nuget.org/api/v2/Packages()?`$filter=Id eq '$packageName' and Version eq '$version'&`$select=Id,Version,Created"
+
+[xml]$result = Download $url
+$items = $result.feed.entry
+foreach ($item in $items) {
+    "Version: " + $item.properties.version
+    "Created: " + $item.properties.created.innerxml
+    break
+}
+
+    $packagesToCheck = SqlQuery "SELECT Name FROM NugetPackage WHERE LastChecked IS NULL OR DATEDIFF(DAY, LastChecked, GETDATE()) > 1"
+    foreach ($package in $packagesToCheck.Tables[0].Rows) {
+        $packageName = $package["Name"]
+        $newestVersion = GetNewestVersion $packageName
+        if (!$newestVersion) { continue }
+        "$packageName $newestVersion"
+        SqlNonQuery "IF NOT EXISTS (SELECT 0 FROM NugetPackageVersion WHERE PackageName = '$packageName' AND Version = '$newestVersion') INSERT INTO NugetPackageVersion(PackageName, Version) VALUES ('$packageName', '$newestVersion')"
+        SqlNonQuery "UPDATE NugetPackage SET LastChecked = GETDATE() WHERE Name = '$packageName'"
+    }
+
+
+# TESTING DONE
+
+return
+
 CreateDatabaseAndTables
 ClearChecksForProject
 
@@ -160,7 +235,7 @@ foreach ($packageFile in $packageFiles) {
     Write-Host "." -nonewline
 }
 
-return
+UpdatePackageVersionCreated
 
 $sorted = $packages.GetEnumerator() | Sort-Object Name
 
