@@ -1,3 +1,5 @@
+param($projectName = "DBA", $databaseName = "NugetPackages")
+
 function Package ($id, $version) {
     $this = "" | Select Id, Version, FullName
     $this.Id = $id
@@ -62,6 +64,84 @@ function GetAvailableVersions ($id) {
     return $json | ConvertFrom-JSON
 }
 
+function SqlNonQuery($sql, $db = $databaseName, $connectionString = "Server=.\SqlExpress;Database=$db;Integrated Security=true;"){
+    $connection = new-object system.data.SqlClient.SQLConnection($connectionString);
+    $command = new-object system.data.sqlclient.sqlcommand($sql, $connection);
+    $connection.Open();
+    $rowsAffected = $command.ExecuteNonQuery()
+    $connection.Close();
+}
+
+function SqlQuery($sql, $db = $databaseName, $connectionString = "Server=.\SqlExpress;Database=$db;Integrated Security=true;") {
+    $ds = new-object "System.Data.DataSet"
+    $da = new-object "System.Data.SqlClient.SqlDataAdapter" ($sql, $connectionString)
+    $record_count = $da.Fill($ds)
+    return $ds
+}
+
+function SqlAddPackage($packageName, $version) {
+    $sql = "IF NOT EXISTS (SELECT 0 FROM NugetPackage WHERE Name = '$packageName') INSERT INTO NugetPackage (Name) VALUES ('$packageName')"
+    SqlNonQuery $sql
+    
+    $sql = "IF NOT EXISTS (SELECT 0 FROM NugetPackageVersion WHERE PackageName = '$packageName' AND Version = '$version')
+    INSERT INTO NugetPackageVersion (PackageName, Version) VALUES ('$packageName', '$version')"
+    SqlNonQuery $sql
+    
+    $sql = "IF EXISTS
+    (
+        SELECT 0 FROM ProjectNugetPackage
+        WHERE ProjectName = '$projectName' AND PackageName = '$packageName' AND PackageVersion = '$version'
+    )
+    UPDATE ProjectNugetPackage SET IncludedInLastCheck = 1
+    WHERE ProjectName = '$projectName' AND PackageName = '$packageName' AND PackageVersion = '$version'
+    ELSE INSERT INTO ProjectNugetPackage
+    (ProjectName, PackageName, PackageVersion, IncludedInLastCheck)
+    VALUES ('$projectName', '$packageName', '$version', 1)"
+    SqlNonQuery $sql
+}
+
+function CreateDatabaseAndTables {
+    SqlNonQuery "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$databaseName') CREATE DATABASE $databaseName" "master"
+    
+    SqlNonQuery "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'NugetPackage')
+    CREATE TABLE NugetPackage
+    (
+        Id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_NugetPackage PRIMARY KEY CLUSTERED
+        , RecordCreated datetime NOT NULL CONSTRAINT DF_NugetPackage_RecordCreated DEFAULT GETDATE()
+        , Name nvarchar(100) NOT NULL CONSTRAINT UK_NugetPackage_Name UNIQUE
+        , LastChecked datetime NULL
+    )"
+    
+    SqlNonQuery "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'NugetPackageVersion')
+    CREATE TABLE NugetPackageVersion
+    (
+        Id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_NugetPackageVersion PRIMARY KEY CLUSTERED
+        , RecordCreated datetime NOT NULL CONSTRAINT DF_NugetPackageVersion_RecordCreated DEFAULT GETDATE()
+        , PackageName nvarchar(100) NOT NULL
+        , Version nvarchar(50) NOT NULL
+        , CONSTRAINT UK_NugetPackageVersion_PackageNameVersion UNIQUE (PackageName, Version)
+        , VersionDate datetime NULL
+    )"
+    
+    SqlNonQuery "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ProjectNugetPackage')
+    CREATE TABLE ProjectNugetPackage
+    (
+        Id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ProjectNugetPackage PRIMARY KEY CLUSTERED
+        , RecordCreated datetime NOT NULL CONSTRAINT DF_ProjectNugetPackage_RecordCreated DEFAULT GETDATE()
+        , ProjectName nvarchar(50) NOT NULL
+        , PackageName nvarchar(100) NOT NULL
+        , PackageVersion nvarchar(50) NOT NULL
+        , CONSTRAINT UK_ProjectNugetPackage_ProjectNamePackageNameVersion UNIQUE (ProjectName, PackageName, PackageVersion)
+        , IncludedInLastCheck bit NOT NULL CONSTRAINT DF_ProjectNugetPackage_IncludedInLastCheck DEFAULT 1
+    )"
+}
+
+#function ClearChecksForProject
+
+CreateDatabaseAndTables
+
+#TODO : ClearChecksForProject
+
 Write-Host "Getting current packages" -nonewline
 $packageFiles = (gci -r -include packages.config)
 $packages = @{}
@@ -71,12 +151,15 @@ foreach ($packageFile in $packageFiles) {
         $id = $packageXml.id
         $version = $packageXml.version
         $package = Package $id $version
+        SqlAddPackage $id $version
         if (!$packages.ContainsKey($package.FullName)) {
             $packages.Add($package.FullName, $package)
         }
     }
     Write-Host "." -nonewline
 }
+
+return
 
 $sorted = $packages.GetEnumerator() | Sort-Object Name
 
