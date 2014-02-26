@@ -196,6 +196,33 @@ function GetNewestVersions {
     }
 }
 
+function OutputResults {
+    $results = SqlQuery "WITH NewestVersion AS
+(
+    SELECT PackageName, Version, VersionDate FROM
+    (
+        SELECT PackageName, Version, VersionDate
+            , ROW_NUMBER() OVER (PARTITION BY PackageName ORDER BY VersionDate DESC) 
+                AS Versionindex
+        FROM NugetPackages.dbo.NugetPackageVersion
+    ) AS X
+    WHERE VersionIndex = 1
+)
+SELECT PNP.PackageName, PNP.PackageVersion AS CurrentVersion, NPV.VersionDate AS CurrentVersionDate
+    , NV.Version AS NewestVersion, NV.VersionDate AS NewestVersionDate
+FROM ProjectNugetPackage AS PNP
+JOIN NugetPackageVersion AS NPV
+    ON PNP.PackageName = NPV.PackageName
+    AND PNP.PackageVersion = NPV.Version
+JOIN NewestVersion AS NV
+    ON PNP.PackageName = NV.PackageName
+WHERE ProjectName = '$projectName'"
+    # TODO: Order by version diff
+    foreach ($item in $results.Tables[0].Rows) {
+        $item
+    }
+}
+
 CreateDatabaseAndTables
 ClearChecksForProject
 
@@ -218,6 +245,8 @@ foreach ($packageFile in $packageFiles) {
 
 GetNewestVersions
 UpdatePackageVersionCreated
+
+OutputResults
 
 return
 
