@@ -136,11 +136,12 @@ function CreateDatabaseAndTables {
     )"
 }
 
-#function ClearChecksForProject
+function ClearChecksForProject {
+    SqlNonQuery "UPDATE ProjectNugetPackage SET IncludedInLastCheck = 0 WHERE ProjectName = '$projectName'"
+}
 
 CreateDatabaseAndTables
-
-#TODO : ClearChecksForProject
+ClearChecksForProject
 
 Write-Host "Getting current packages" -nonewline
 $packageFiles = (gci -r -include packages.config)
