@@ -177,29 +177,14 @@ function GetNewestVersion($packageName) {
     [xml]$result = Download $url
     $items = $result.feed.entry
     foreach ($item in $items) {
-        return $item.properties.version
+        $version = $item.properties.version
+        if (!$version.Contains("-")) {
+            return $version
+        }
     }
 }
 
-# TESTING:
-
-$packageName = "NUnit"
-$version = "2.6.2"
-
-# Newest version:
-$url = "http://www.nuget.org/api/v2/Packages()?`$filter=Id eq '$packageName'&`$orderby=Created desc&`$select=Id,Version,Created"
-
-# Specific version:
-$url = "http://www.nuget.org/api/v2/Packages()?`$filter=Id eq '$packageName' and Version eq '$version'&`$select=Id,Version,Created"
-
-[xml]$result = Download $url
-$items = $result.feed.entry
-foreach ($item in $items) {
-    "Version: " + $item.properties.version
-    "Created: " + $item.properties.created.innerxml
-    break
-}
-
+function GetNewestVersions {
     $packagesToCheck = SqlQuery "SELECT Name FROM NugetPackage WHERE LastChecked IS NULL OR DATEDIFF(DAY, LastChecked, GETDATE()) > 1"
     foreach ($package in $packagesToCheck.Tables[0].Rows) {
         $packageName = $package["Name"]
@@ -209,11 +194,7 @@ foreach ($item in $items) {
         SqlNonQuery "IF NOT EXISTS (SELECT 0 FROM NugetPackageVersion WHERE PackageName = '$packageName' AND Version = '$newestVersion') INSERT INTO NugetPackageVersion(PackageName, Version) VALUES ('$packageName', '$newestVersion')"
         SqlNonQuery "UPDATE NugetPackage SET LastChecked = GETDATE() WHERE Name = '$packageName'"
     }
-
-
-# TESTING DONE
-
-return
+}
 
 CreateDatabaseAndTables
 ClearChecksForProject
@@ -235,7 +216,10 @@ foreach ($packageFile in $packageFiles) {
     Write-Host "." -nonewline
 }
 
+GetNewestVersions
 UpdatePackageVersionCreated
+
+return
 
 $sorted = $packages.GetEnumerator() | Sort-Object Name
 
