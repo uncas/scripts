@@ -144,6 +144,52 @@ function CreateDatabaseAndTables {
         , CONSTRAINT UK_ProjectNugetPackage_ProjectNamePackageNameVersion UNIQUE (ProjectName, PackageName, PackageVersion)
         , IncludedInLastCheck bit NOT NULL CONSTRAINT DF_ProjectNugetPackage_IncludedInLastCheck DEFAULT 1
     )"
+    
+    SqlNonQuery "
+IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'NugetPackageVersion' AND COLUMN_NAME = 'VersionNumber')
+ALTER TABLE NugetPackageVersion
+    DROP COLUMN VersionNumber"
+
+    $exists = SqlQuery "SELECT 0 FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_NAME = 'fn_VersionNumber'"
+    if ($exists.Tables[0].Rows) { $createOrAlterFunction = "ALTER" }
+    else { $createOrAlterFunction = "CREATE" }
+    SqlNonQuery "$createOrAlterFunction FUNCTION dbo.fn_VersionNumber(
+    @input nvarchar(50)
+)
+RETURNS bigint
+AS
+BEGIN
+    DECLARE @numberPart nvarchar(50) = @input
+    IF (LEN(@numberPart) != LEN(REPLACE(@numberPart, '-', '')))
+    BEGIN
+        DECLARE @dashIndex int = CHARINDEX('-', @input)
+        SET @numberPart = SUBSTRING(@input, 1, @dashIndex-1)
+    END
+    DECLARE @numberOfDots int = LEN(@numberPart) - LEN(REPLACE(@numberPart, '.', ''))
+
+    DECLARE @first int = LEN(@numberPart)+1, @second int = LEN(@numberPart)+1, @third int = LEN(@numberPart)+1
+    SELECT @first = CHARINDEX('.', @numberPart)
+    if (@numberOfDots > 1)
+    SELECT @second = CHARINDEX('.', @numberPart, @first+1)
+    if (@numberOfDots > 2)
+    SELECT @third = CHARINDEX('.', @numberPart, @second+1)
+
+    DECLARE @major int=0, @minor int=0, @patch int=0, @revision int=0
+    SELECT @major = SUBSTRING(@numberPart, 1, @first-1)
+    if (@numberOfDots > 0)
+    SELECT @minor = SUBSTRING(@numberPart, @first+1, @second-@first-1)
+    if (@numberOfDots > 1)
+    SELECT @patch = SUBSTRING(@numberPart, @second+1, @third-@second-1)
+    if (@numberOfDots > 2)
+    SELECT @revision = SUBSTRING(@numberPart, @third+1, LEN(@numberPart)-@third+1)
+
+    DECLARE @factor numeric = 10000.0
+    RETURN @revision + @factor*(@patch + @factor*(@minor + @factor*@major))
+END
+"
+
+    SqlNonQuery "ALTER TABLE NugetPackageVersion
+    ADD VersionNumber AS dbo.fn_VersionNumber(Version)"
 }
 
 function ClearChecksForProject {
@@ -197,29 +243,42 @@ function GetNewestVersions {
 }
 
 function OutputResults {
-    $results = SqlQuery "WITH NewestVersion AS
+    $results = SqlQuery ";WITH NewestVersion AS
 (
-    SELECT PackageName, Version, VersionDate FROM
+    SELECT PackageName, Version, VersionDate, VersionNumber FROM
     (
         SELECT PackageName, Version, VersionDate
             , ROW_NUMBER() OVER (PARTITION BY PackageName ORDER BY VersionDate DESC) 
                 AS Versionindex
+            , VersionNumber
         FROM NugetPackages.dbo.NugetPackageVersion
     ) AS X
     WHERE VersionIndex = 1
 )
 SELECT PNP.PackageName, PNP.PackageVersion AS CurrentVersion, NPV.VersionDate AS CurrentVersionDate
     , NV.Version AS NewestVersion, NV.VersionDate AS NewestVersionDate
+    , DATEDIFF(DAY, NPV.VersionDate, NV.VersionDate) AS OutdatedDays
+    , NV.VersionNumber - NPV.VersionNumber AS OutdatedVersionNumbers
 FROM ProjectNugetPackage AS PNP
 JOIN NugetPackageVersion AS NPV
     ON PNP.PackageName = NPV.PackageName
     AND PNP.PackageVersion = NPV.Version
 JOIN NewestVersion AS NV
     ON PNP.PackageName = NV.PackageName
-WHERE ProjectName = '$projectName'"
-    # TODO: Order by version diff
-    foreach ($item in $results.Tables[0].Rows) {
-        $item
+WHERE ProjectName = '$projectName'
+ORDER BY OutdatedVersionNumbers DESC, OutdatedDays DESC
+"
+    $items = $results.Tables[0].Rows
+    cls
+    foreach ($item in $items) {
+        $PackageName = $item["PackageName"]
+        $CurrentVersion = $item["CurrentVersion"]
+        $CurrentVersionDate = $item["CurrentVersionDate"]
+        $NewestVersion = $item["NewestVersion"]
+        $NewestVersionDate = $item["NewestVersionDate"]
+        $OutdatedDays = $item["OutdatedDays"]
+        $OutdatedVersionNumbers = $item["OutdatedVersionNumbers"]
+        "$packageName, $currentVersion, $newestVersion, $outdatedDays"
     }
 }
 
